@@ -3,13 +3,13 @@ import { Response } from "express";
 export function doResponse<T>(
 	res: Response,
 	{
-		status = 200,
+		success = true,
 		message,
 		data,
-	}: { status?: number; message?: string; data?: T }
+	}: { success?: boolean; message?: string; data?: T }
 ) {
-	return res.status(status).json({
-		success: status === 200 ? true : false,
+	return res.json({
+		success,
 		message,
 		data,
 	});
