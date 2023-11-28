@@ -1,16 +1,16 @@
 import { Response } from "express";
 
-export function doResponse(
-    res: Response,
-    {
-        success = true,
-        message,
-        data,
-    }: { success?: boolean; message?: string; data?: any }
+export function doResponse<T>(
+	res: Response,
+	{
+		status = 200,
+		message,
+		data,
+	}: { status?: number; message?: string; data?: T }
 ) {
-    return res.json({
-        success,
-        message,
-        data,
-    });
+	return res.status(status).json({
+		success: status === 200 ? true : false,
+		message,
+		data,
+	});
 }
