@@ -1,10 +1,13 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { readFileSync } from "fs";
+import { streamToResponse } from "ai";
+
 import { doResponse } from "../services/response";
 import { upload } from "../services/audio";
 import speechToText from "../services/speech-to-text";
 import summarizeText from "../services/text-to-summary";
+import { prisma } from "../services/prisma";
 
 const router = Router();
 
@@ -14,66 +17,133 @@ router.get("/", (req, res) => {
 	});
 });
 
-// TODO: Can the form-data parsing stream be piped directly to the axios request?
-// This would save us from having to save the file to disk first.
-
-// router.post("/upload", upload.single("file"), async (req, res) => {
-// 	console.log(req.file);
-// 	if (!req.file) {
-// 		return doResponse(res, {
-// 			status: 400,
-// 			message: "Invalid file upload",
-// 		});
-// 	}
-// 	const form = new FormData();
-// 	form.append("file", fs.createReadStream(req.file.path));
-// 	form.append("diarization", "false");
-// 	const { data } = await axios.post<Readable>(
-// 		"https://api.iapp.co.th/asr",
-// 		form,
-// 		{
-// 			headers: {
-// 				apikey: process.env.IAPP_API_KEY,
-// 			},
-// 			responseType: "stream",
-// 		}
-// 	);
-// 	data.pipe(res);
-// });
-
-const cached = new Map<string, { text: string; summary: string }>();
-
-router.post("/summarize", upload.single("file"), async (req, res) => {
-	if (!req.file) {
+router.post("/upload", upload.single("file"), async (req, res) => {
+	const file = req.file;
+	if (!file) {
 		return doResponse(res.status(400), {
 			success: false,
 			message: "Invalid file upload",
 		});
 	}
 
+	// TODO: Stream and compute the hash file without reading the whole file into memory again.
 	const fileHash = crypto
 		.createHash("sha1")
-		.update(readFileSync(req.file.path))
+		.update(readFileSync(file.path))
 		.digest("hex");
 
-	const cache = cached.get(fileHash);
-	if (cache) {
+	const existingResult = await prisma.speech2Text.findFirst({
+		where: {
+			fileHash,
+		},
+	});
+
+	if (existingResult && existingResult.status !== "error") {
+		const { id, content, status } = existingResult;
 		return doResponse(res, {
-			data: cache,
+			data: {
+				id,
+				content,
+				status,
+			},
 		});
 	}
 
-	const text = await speechToText(req.file);
-	const summary = await summarizeText(text);
-
-	cached.set(fileHash, { text, summary });
-
-	doResponse(res, {
+	const { id, status } = await prisma.speech2Text.create({
 		data: {
-			text,
-			summary,
+			fileName: file.filename,
+			fileHash,
+			status: "pending",
 		},
 	});
+
+	req.app.locals.task.add(id, {
+		run: async (controller) => speechToText(file, controller),
+		onStatusUpdate: async (status, content) => {
+			console.log(`[Task] ${id} status: ${status}`);
+			return await prisma.speech2Text.update({
+				where: {
+					id,
+				},
+				data: {
+					content,
+					status,
+					...(status === "done"
+						? {
+								completedAt: new Date(),
+						  }
+						: {}),
+				},
+			});
+		},
+	});
+	await req.app.locals.task.run(id);
+
+	return doResponse(res, {
+		data: {
+			id,
+			status,
+		},
+	});
+});
+
+router.get("/:id/status", async (req, res) => {
+	const id = req.params.id;
+
+	const result = await prisma.speech2Text.findUnique({
+		where: {
+			id,
+		},
+	});
+
+	if (!result) {
+		return doResponse(res.status(404), {
+			success: false,
+			message: "Invalid ID",
+		});
+	}
+
+	return doResponse(res, {
+		data: {
+			id: result.id,
+			status: result.status,
+			...(result.content ? { content: result.content } : {}),
+		},
+	});
+});
+
+router.post("/:id/summarize", async (req, res) => {
+	const id = req.params.id;
+
+	const result = await prisma.speech2Text.findUnique({
+		where: {
+			id,
+		},
+	});
+	if (!result) {
+		return doResponse(res.status(404), {
+			success: false,
+			message: "Invalid ID",
+		});
+	}
+
+	if (!result.content) {
+		return doResponse(res.status(400), {
+			success: false,
+			message: "No content",
+		});
+	}
+
+	try {
+		const summary = await summarizeText(result.content);
+		return streamToResponse(summary, res);
+	} catch (err) {
+		console.error(err);
+		return doResponse(res.status(500), {
+			success: false,
+			message: "Internal server error",
+		});
+	}
 });
 
 export default router;
