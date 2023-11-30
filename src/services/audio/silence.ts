@@ -1,9 +1,16 @@
+export type AudioPart = {
+	audio_start: number;
+	audio_end: number;
+	audio_duration: number;
+	silence_duration: number;
+};
+
 /**
  * Class to parse FFMPEG output to silence detection parts,
  * and split audio based on these informations.
  */
 class FFMpegSilenceProcessor {
-	private _parts: Record<string, any>[] = [];
+	private _parts: AudioPart[] = [];
 	private currentPos: number = 0;
 	private duration: number = 0;
 
@@ -33,7 +40,6 @@ class FFMpegSilenceProcessor {
 		const minutes = +a[1] * 60;
 		const seconds = +a[2];
 		this.duration = hours + minutes + seconds;
-		console.log(this.duration);
 	}
 
 	private _handleSilenceStart = (value: number) => {
@@ -41,6 +47,7 @@ class FFMpegSilenceProcessor {
 			audio_start: this.currentPos,
 			audio_end: this.currentPos + value,
 			audio_duration: value,
+			silence_duration: 0,
 		});
 	};
 
@@ -90,6 +97,7 @@ class FFMpegSilenceProcessor {
 				audio_start: this.currentPos,
 				audio_end: this.duration,
 				audio_duration: this.duration - this.currentPos,
+				silence_duration: 0,
 			});
 		}
 		return this;
@@ -122,7 +130,7 @@ class FFMpegSilenceProcessor {
 			}
 
 			return acc;
-		}, []);
+		}, [] as AudioPart[]);
 	}
 }
 

@@ -1,12 +1,12 @@
 import ffmpeg from "fluent-ffmpeg";
-import FFMpegSilenceProcessor from "./silence";
+import FFMpegSilenceProcessor, { AudioPart } from "./silence";
 
 /**
  * Converts the audio file to mono, 16-bit, 16kHz PCM WAV, which is the format
  * required by most speech-to-text APIs.
  */
 export const convertAudioFile = (input: string, output: string) => {
-	return new Promise((resolve, reject) =>
+	return new Promise<void>((resolve, reject) =>
 		ffmpeg()
 			.input(input)
 			.audioCodec("pcm_s16le")
@@ -26,7 +26,7 @@ export const convertAudioFile = (input: string, output: string) => {
  * **Note:** The final parts duration may be shorter than the `maxDurationInSeconds` parameter.
  */
 export const getAudioParts = (input: string, maxDurationInSeconds: number) => {
-	return new Promise((resolve, reject) => {
+	return new Promise<AudioPart[]>((resolve, reject) => {
 		const silence = new FFMpegSilenceProcessor();
 		ffmpeg({ stdoutLines: 0 })
 			.input(input)
