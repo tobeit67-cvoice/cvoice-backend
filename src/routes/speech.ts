@@ -1,13 +1,13 @@
-import { Router } from "express";
-import crypto from "crypto";
-import { readFileSync } from "fs";
 import { streamToResponse } from "ai";
+import crypto from "crypto";
+import { Router } from "express";
+import { readFileSync } from "fs";
 
-import { doResponse } from "../services/response";
 import { upload } from "../services/audio";
+import { prisma } from "../services/prisma";
+import { doResponse } from "../services/response";
 import speechToText from "../services/speech-to-text";
 import summarizeText from "../services/text-to-summary";
-import { prisma } from "../services/prisma";
 
 const router = Router();
 
@@ -111,6 +111,12 @@ router.get("/:id/status", async (req, res) => {
 		},
 	});
 });
+
+// router.get("/test", async (req, res) => {
+// 	return doResponse(res, {
+// 		data: await getAudioParts(`data/videoplayback.m4a`),
+// 	});
+// });
 
 router.post("/:id/summarize", async (req, res) => {
 	const id = req.params.id;
