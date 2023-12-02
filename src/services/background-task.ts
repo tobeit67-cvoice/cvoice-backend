@@ -90,6 +90,7 @@ export default class BackgroundTaskQueue {
 				}
 			})
 			.catch(async (error) => {
+				console.error(error);
 				this.queue.set(id, {
 					...task,
 					status: "error",
