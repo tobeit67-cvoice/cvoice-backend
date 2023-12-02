@@ -1,7 +1,7 @@
 import { streamToResponse } from "ai";
 import crypto from "crypto";
 import { Router } from "express";
-import { readFileSync } from "fs";
+import { readFileSync, createReadStream } from "fs";
 
 import { upload } from "../services/audio";
 import { prisma } from "../services/prisma";
@@ -117,6 +117,28 @@ router.get("/:id/status", async (req, res) => {
 // 		data: await getAudioParts(`data/videoplayback.m4a`),
 // 	});
 // });
+
+router.get("/:id/audio", async (req, res) => {
+	const id = req.params.id;
+
+	const result = await prisma.speech2Text.findUnique({
+		where: {
+			id,
+		},
+	});
+
+	if (!result || result.status !== "done") {
+		return doResponse(res.status(404), {
+			success: false,
+			message: "Invalid ID",
+		});
+	}
+
+	const file = `data/uploads/${result.fileName}`;
+	const fileStream = createReadStream(file);
+	res.appendHeader("Content-Type", "audio/wav");
+	return fileStream.pipe(res);
+});
 
 router.post("/:id/summarize", async (req, res) => {
 	const id = req.params.id;
