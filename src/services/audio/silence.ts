@@ -45,8 +45,8 @@ class FFMpegSilenceProcessor {
 	private _handleSilenceStart = (value: number) => {
 		this._parts.push({
 			audio_start: this.currentPos,
-			audio_end: this.currentPos + value,
-			audio_duration: value,
+			audio_end: value,
+			audio_duration: value - this.currentPos,
 			silence_duration: 0,
 		});
 	};
@@ -56,6 +56,7 @@ class FFMpegSilenceProcessor {
 	};
 
 	private _handleSilenceDuration = (value: number) => {
+		//this.currentPos += value;
 		this._parts[this._parts.length - 1] = {
 			...(this._parts[this._parts.length - 1] || {}),
 			silence_duration: value,

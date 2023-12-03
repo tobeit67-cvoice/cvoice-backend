@@ -1,19 +1,25 @@
-import multer from "multer";
 import fs from "fs";
+import multer from "multer";
 
 const destinationFolder = "data/uploads/";
+const processedFileFolder = "data/processed/";
+
+const createIfNotExist = (path: string) => {
+	if (!fs.existsSync(path)) {
+		fs.mkdirSync(path, {
+			recursive: true,
+		});
+	}
+};
 
 const storage = multer.diskStorage({
 	destination: (req, file, cb) => {
-		if (!fs.existsSync(destinationFolder)) {
-			fs.mkdirSync(destinationFolder, {
-				recursive: true,
-			});
-		}
+		createIfNotExist(destinationFolder);
+		createIfNotExist(processedFileFolder);
 		cb(null, destinationFolder);
 	},
 	filename: (req, file, cb) => {
-		cb(null, `${Date.now()}-${file.originalname}`);
+		cb(null, `${Date.now()}-${file.originalname.replace(/ /g, "_")}`);
 	},
 });
 

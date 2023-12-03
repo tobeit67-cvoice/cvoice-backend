@@ -1,12 +1,15 @@
 import { streamToResponse } from "ai";
 import crypto from "crypto";
 import { Router } from "express";
-import { readFileSync, createReadStream } from "fs";
+import { createReadStream, readFileSync } from "fs";
 
 import { upload } from "../services/audio";
+import { getAudioParts } from "../services/audio/ffmpeg";
 import { prisma } from "../services/prisma";
 import { doResponse } from "../services/response";
-import speechToText from "../services/speech-to-text";
+import speechToText, {
+	unstable_speechToTextMultipart,
+} from "../services/speech-to-text";
 import summarizeText from "../services/text-to-summary";
 
 const router = Router();
@@ -31,7 +34,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 		.createHash("sha1")
 		.update(readFileSync(file.path))
 		.digest("hex");
-
+	/*
 	const existingResult = await prisma.speech2Text.findFirst({
 		where: {
 			fileHash,
@@ -48,7 +51,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 			},
 		});
 	}
-
+*/
 	const { id, status } = await prisma.speech2Text.create({
 		data: {
 			fileName: file.filename,
@@ -57,8 +60,15 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 		},
 	});
 
+	const multipart = req.query.multipart === "true";
+
 	req.app.locals.task.add(id, {
-		run: async (controller) => speechToText(file, controller),
+		run: async (controller) => {
+			if (multipart) {
+				return unstable_speechToTextMultipart(file.path, controller);
+			}
+			return speechToText(file.path, controller);
+		},
 		onStatusUpdate: async (status, content) => {
 			console.log(`[Task] ${id} status: ${status}`);
 			return await prisma.speech2Text.update({
@@ -112,11 +122,11 @@ router.get("/:id/status", async (req, res) => {
 	});
 });
 
-// router.get("/test", async (req, res) => {
-// 	return doResponse(res, {
-// 		data: await getAudioParts(`data/videoplayback.m4a`),
-// 	});
-// });
+router.get("/test", async (req, res) => {
+	return doResponse(res, {
+		data: await getAudioParts(`data/videoplayback.m4a`, 60),
+	});
+});
 
 router.get("/:id/audio", async (req, res) => {
 	const id = req.params.id;
